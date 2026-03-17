@@ -1,0 +1,477 @@
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background: #0a0a12;
+	color: #e0e0f0;
+	font-family: 'Segoe UI', system-ui, sans-serif;
+	height: 100dvh;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+/* ── Header ── */
+#header {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 10px 16px;
+	background: rgba(10, 10, 20, 0.92);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	flex-shrink: 0;
+	z-index: 10;
+}
+
+#header h1 {
+	font-size: 15px;
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	color: #c8d8f8;
+	white-space: nowrap;
+}
+
+#header h1 span {
+	color: #5b9cf6;
+}
+
+.stat-pill {
+	font-size: 11px;
+	color: #8899bb;
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 99px;
+	padding: 3px 10px;
+	white-space: nowrap;
+}
+
+#status-text {
+	font-size: 11px;
+	color: #6677aa;
+	margin-left: auto;
+	white-space: nowrap;
+}
+
+/* ── Map ── */
+#map-wrap {
+	position: relative;
+	flex: 1;
+	overflow: hidden;
+}
+
+#aladin-lite-div {
+	width: 100%;
+	height: 100%;
+}
+
+/* ── SVG Overlay ──
+           #sky-overlay:        pointer-events none  → alle Events gehen durch zu Aladin
+           .sky-img-group:      pointer-events none  → Gruppe transparent
+           .sky-img:            pointer-events none  → Bild-Element blockiert nichts
+           .sky-img-fallback:   pointer-events none
+           .img-border:         pointer-events all   → NUR Rahmen klickbar
+        */
+#sky-overlay {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 10;
+	overflow: visible;
+}
+
+.sky-img-group {
+	pointer-events: none;
+}
+
+.sky-img {
+	opacity: 0.85;
+	pointer-events: none;
+}
+
+.sky-img-fallback {
+	pointer-events: none;
+}
+
+.sky-img-label {
+	pointer-events: none;
+}
+
+.img-border {
+	fill: transparent;
+	stroke: rgba(91, 156, 246, 0.7);
+	stroke-width: 1.5;
+	pointer-events: all;
+	cursor: pointer;
+}
+
+.img-border:hover {
+	stroke: #5b9cf6;
+	stroke-width: 2.5;
+}
+
+/* ── Badges ── */
+#fov-badge {
+	position: absolute;
+	top: 8px;
+	left: 330px;
+	z-index: 10;
+	background: rgba(10, 12, 28, 0.75);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: 6px;
+	padding: 4px 10px;
+	font-size: 11px;
+	color: #667799;
+	pointer-events: none;
+}
+
+#mode-badge {
+	position: absolute;
+	top: 8px;
+	left: 430px;
+	z-index: 10;
+	border-radius: 6px;
+	padding: 4px 10px;
+	font-size: 11px;
+	pointer-events: none;
+	transition: background 0.4s, color 0.4s;
+}
+
+#mode-badge.mode-overlay {
+	background: rgba(30, 60, 120, 0.7);
+	color: #5b9cf6;
+	border: 1px solid rgba(91, 156, 246, 0.3);
+}
+
+#mode-badge.mode-markers {
+	background: rgba(60, 40, 10, 0.7);
+	color: #f0a040;
+	border: 1px solid rgba(240, 160, 60, 0.3);
+}
+
+/* ── Info panel ── */
+#info-panel {
+	position: absolute;
+	bottom: 24px;
+	right: 16px;
+	width: 300px;
+	background: rgba(10, 12, 28, 0.92);
+	border: 1px solid rgba(91, 156, 246, 0.3);
+	border-radius: 12px;
+	padding: 14px 16px;
+	z-index: 20;
+	backdrop-filter: blur(8px);
+	display: none;
+	animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+#info-panel.visible {
+	display: block;
+}
+
+#info-panel h2 {
+	font-size: 13px;
+	font-weight: 600;
+	color: #c8d8f8;
+	margin-bottom: 4px;
+}
+
+.info-meta {
+	font-size: 11px;
+	color: #667799;
+	margin-bottom: 8px;
+}
+
+#info-panel img {
+	width: 100%;
+	border-radius: 6px;
+	margin-bottom: 8px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.info-desc {
+	font-size: 11px;
+	color: #8899bb;
+	line-height: 1.5;
+}
+
+#info-close {
+	position: absolute;
+	top: 10px;
+	right: 12px;
+	background: none;
+	border: none;
+	color: #667799;
+	font-size: 16px;
+	cursor: pointer;
+}
+
+#info-close:hover {
+	color: #c8d8f8;
+}
+
+/* ── Debug (unten links, klein) ── */
+#debug-log {
+	position: absolute;
+	bottom: 6px;
+	left: 10px;
+	z-index: 30;
+	font-size: 9px;
+	color: rgba(100, 150, 255, 0.5);
+	font-family: monospace;
+	pointer-events: none;
+	white-space: pre;
+}
+
+#opacity-wrap {
+    display:     flex;
+    align-items: center;
+    gap:         6px;
+    font-size:   13px;
+    color:       #8899cc;
+    cursor:      pointer;
+    user-select: none;
+}
+
+#opacity-slider {
+    width:      90px;
+    accent-color: #5b9cf6;
+    cursor:     pointer;
+}
+
+#opacity-val {
+    min-width:  30px;
+    font-size:  12px;
+    color:      #c8d8f8;
+}
+
+/* ── Admin Button ─────────────────────────────────────────────────────────── */
+#admin-btn {
+    background: transparent;
+    border: 1px solid rgba(91,156,246,0.35);
+    color: #5b9cf6;
+    border-radius: 6px;
+    padding: 4px 11px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+#admin-btn:hover       { background: rgba(91,156,246,0.12); }
+#admin-btn.active      { color: #f0a040; border-color: rgba(240,160,64,0.6); background: rgba(240,160,64,0.08); }
+
+#admin-logout-btn {
+    background: transparent;
+    border: 1px solid rgba(240,100,80,0.4);
+    color: #f06450;
+    border-radius: 6px;
+    padding: 4px 11px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+#admin-logout-btn:hover { background: rgba(240,100,80,0.12); }
+
+/* ── Login-Modal ──────────────────────────────────────────────────────────── */
+#admin-login-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,8,0.78);
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+    align-items: center;
+    justify-content: center;
+}
+#admin-login-modal.visible { display: flex; }
+
+.admin-modal-box {
+    background: #0b1030;
+    border: 1px solid rgba(91,156,246,0.45);
+    border-radius: 14px;
+    padding: 30px 34px;
+    width: 320px;
+    box-shadow: 0 28px 72px rgba(0,0,0,0.65);
+}
+.admin-modal-box h3 {
+    margin: 0 0 20px;
+    color: #c8d8f8;
+    font-size: 15px;
+    text-align: center;
+    letter-spacing: 0.04em;
+}
+.admin-modal-box input[type=password] {
+    width: 100%; box-sizing: border-box;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(91,156,246,0.3);
+    border-radius: 7px;
+    color: #e0ecff;
+    padding: 9px 13px;
+    font-size: 14px;
+}
+.admin-modal-box input:focus { outline: none; border-color: #5b9cf6; }
+#admin-login-error {
+    color: #f06450; font-size: 12px;
+    text-align: center; min-height: 18px; margin-top: 8px;
+}
+.admin-modal-actions { display: flex; gap: 9px; margin-top: 16px; }
+.admin-modal-actions button { flex: 1; padding: 9px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; }
+#admin-login-submit  { background: #2a55c4; color: #fff; }
+#admin-login-submit:hover { background: #3464dc; }
+#admin-login-cancel  { background: rgba(255,255,255,0.07); color: #8899cc; }
+#admin-login-cancel:hover { background: rgba(255,255,255,0.12); }
+
+/* ── Admin-Panel (Sidebar rechts) ─────────────────────────────────────────── */
+#admin-panel {
+    display: none;
+    position: fixed;
+    right: 0; top: 48px; bottom: 0;
+    width: 256px;
+    background: rgba(6,9,24,0.93);
+    border-left: 1px solid rgba(91,156,246,0.18);
+    backdrop-filter: blur(10px);
+    z-index: 900;
+    overflow-y: auto;
+    padding: 14px 14px 20px;
+    box-sizing: border-box;
+}
+#admin-panel.visible { display: block; }
+
+.admin-section { margin-bottom: 22px; }
+.admin-section h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #5b9cf6;
+    margin: 0 0 11px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(91,156,246,0.18);
+}
+.admin-section input[type=text] {
+    width: 100%; box-sizing: border-box;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(91,156,246,0.22);
+    border-radius: 6px;
+    color: #c8d8f8;
+    padding: 7px 10px;
+    font-size: 12px;
+    margin-bottom: 7px;
+}
+.admin-section input[type=file] {
+    width: 100%; font-size: 11px; color: #8899cc;
+    margin-bottom: 9px; cursor: pointer;
+}
+.admin-section input:focus { outline: none; border-color: #5b9cf6; }
+.admin-btn-primary {
+    width: 100%;
+    background: rgba(42,85,196,0.55);
+    border: 1px solid rgba(91,156,246,0.38);
+    color: #c8d8f8;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.admin-btn-primary:hover { background: rgba(42,85,196,0.85); }
+.btn-danger {
+    width: 100%;
+    background: rgba(160,30,20,0.35);
+    border: 1px solid rgba(240,100,80,0.38);
+    color: #f8a090;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: background 0.2s;
+}
+.btn-danger:hover { background: rgba(200,50,40,0.55); }
+#upload-status      { font-size: 11px; color: #6677aa; margin-top: 6px; min-height: 15px; }
+.admin-selected-title { font-size: 13px; color: #c8d8f8; margin-bottom: 5px; font-weight: 500; }
+.admin-selected-info  { font-size: 11px; color: #6677aa; white-space: pre-line; line-height: 1.6; }
+.admin-tips p { font-size: 11px; color: #99aabb; margin: 4px 0; }
+
+/* ── Speicher-Indikator ───────────────────────────────────────────────────── */
+#save-indicator {
+    position: fixed;
+    bottom: 16px; right: 272px;
+    background: rgba(10,14,36,0.92);
+    border: 1px solid rgba(91,156,246,0.35);
+    border-radius: 7px;
+    padding: 6px 13px;
+    font-size: 12px;
+    color: #8899cc;
+    z-index: 2000;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.save-indicator.saving { color: #f0a040; border-color: rgba(240,160,64,0.4); }
+.save-indicator.saved  { color: #50c878; border-color: rgba(80,200,120,0.4); }
+.save-indicator.error  { color: #f06450; border-color: rgba(240,100,80,0.4); }
+
+/* ── Admin-Handles (SVG) ─────────────────────────────────────────────────── */
+.admin-sel-rect {
+    fill: none;
+    stroke: rgba(91,156,246,0.75);
+    stroke-width: 1.5;
+    stroke-dasharray: 7 4;
+    pointer-events: none;
+}
+.admin-body-drag { 
+    cursor: move;
+    pointer-events: all;  /* ← */
+}
+
+.admin-handle {
+    fill: #080f28;
+    stroke: #5b9cf6;
+    stroke-width: 1.5;
+    filter: drop-shadow(0 0 3px rgba(91,156,246,0.6));
+    pointer-events: all;
+}
+.admin-handle:hover { fill: rgba(91,156,246,0.25); }
+
+.admin-handle-rotate {
+    fill: #2a1800;
+    stroke: #f0a040;
+    cursor: crosshair;
+    filter: drop-shadow(0 0 4px rgba(240,160,64,0.7));
+}
+.admin-handle-rotate:hover { fill: rgba(240,160,64,0.2); }
+
+.admin-handle-corner-tl,
+.admin-handle-corner-br { cursor: nwse-resize; }
+.admin-handle-corner-tr,
+.admin-handle-corner-bl { cursor: nesw-resize; }
+
+.admin-rot-line {
+    stroke: rgba(240,160,64,0.45);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    pointer-events: none;
+}
+
+/* Overlay-Bilder im Admin-Modus: Hover-Highlight */
+#sky-overlay.admin-active .img-border {
+    cursor: pointer;
+}
+#sky-overlay.admin-active .img-border:hover {
+    stroke: rgba(240,160,64,0.6) !important;
+    stroke-width: 2 !important;
+}
