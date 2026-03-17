@@ -475,3 +475,19 @@ body {
     stroke: rgba(240,160,64,0.6) !important;
     stroke-width: 2 !important;
 }
+
+.github-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid #2a3045;;
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin-left: 12px;
+    vertical-align: middle;
+    transition: color .2s, border-color .2s;
+}
