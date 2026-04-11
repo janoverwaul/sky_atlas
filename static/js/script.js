@@ -820,24 +820,28 @@ async function handleUpload() {
 }
 
 async function adminDeleteImage(imgId) {
-	const img = allImages.find(i => String(i.id) === String(imgId));
-	if (!confirm(`"${img?.object_name ?? imgId}" wirklich löschen?\nDiese Aktion kann nicht rückgängig gemacht werden.`)) return;
+    const img = allImages.find(i => String(i.id) === String(imgId));
+    if (!confirm(`"${img?.object_name ?? imgId}" wirklich löschen?\nDiese Aktion kann nicht rückgängig gemacht werden.`)) return;
 
-	try {
-		const res  = await fetch(API_URL + '?id=' + imgId, { method: 'DELETE' });
-		const data = await res.json();
-		if (data.success) {
-			overlayCache.delete(String(imgId));
-			allImages     = allImages.filter(i => String(i.id) !== String(imgId));
-			selectedImgId = null;
-			clearAdminHandles();
-			document.getElementById('admin-selected-section').style.display = 'none';
-			document.getElementById('pill-total').textContent = allImages.length + ' Objekte';
-			update();
-		} else {
-			setStatus('Fehler: ' + (data.error || 'Unbekannt'));
-		}
-	} catch (err) {
-		setStatus('Lösch-Fehler: ' + err.message);
-	}
+    try {
+        const res  = await fetch(API_URL + '?id=' + imgId, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            // SVG-Element direkt aus dem DOM entfernen
+            const g = overlayCache.get(String(imgId));
+            if (g && g.parentNode) g.parentNode.removeChild(g);
+
+            overlayCache.delete(String(imgId));
+            allImages     = allImages.filter(i => String(i.id) !== String(imgId));
+            selectedImgId = null;
+            clearAdminHandles();
+            document.getElementById('admin-selected-section').style.display = 'none';
+            document.getElementById('pill-total').textContent = allImages.length + ' Objekte';
+            update();
+        } else {
+            setStatus('Fehler: ' + (data.error || 'Unbekannt'));
+        }
+    } catch (err) {
+        setStatus('Lösch-Fehler: ' + err.message);
+    }
 }
