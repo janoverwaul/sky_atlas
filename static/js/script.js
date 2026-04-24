@@ -41,6 +41,7 @@ A.init.then(() => {
 		setupAladinListeners();
 		setupFastPan();
 		update();
+		scheduleSimbad();
 	});
 });
 
@@ -162,6 +163,15 @@ function setupAladinListeners() {
 	new ResizeObserver(scheduleUpdate).observe(document.getElementById('aladin-lite-div'));
 	aladin.on('positionChanged', () => {
 		if (!isPanning) scheduleUpdate();
+	});
+	aladin.on('zoomChanged', () => {
+		scheduleUpdate();
+		scheduleSimbad();        // ← NEU
+	});
+	new ResizeObserver(scheduleUpdate).observe(document.getElementById('aladin-lite-div'));
+	aladin.on('positionChanged', () => {
+		if (!isPanning) scheduleUpdate();
+		scheduleSimbad();        // ← NEU
 	});
 }
 
@@ -1028,3 +1038,158 @@ function escapeHtml(str) {
 function escapeAttr(str) {
 	return String(str ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SIMBAD Identifikation ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+const SIMBAD_TAP_URL        = 'https://simbad.cds.unistra.fr/simbad/sim-tap/sync';
+const SIMBAD_DEBOUNCE_MS    = 500;
+const SIMBAD_MIN_RADIUS_DEG = 0.003;   // ~11″
+const SIMBAD_MAX_RADIUS_DEG = 0.5;     // 30′
+const SIMBAD_MAX_FOV_DEG    = 30;      // Darüber kein Sinn
+const SIMBAD_MAX_RESULTS    = 20;
+
+let simbadAbort     = null;
+let simbadLastQuery = null;
+
+// Aufklappen / Zuklappen
+document.getElementById('simbad-header').addEventListener('click', toggleSimbadPanel);
+
+function toggleSimbadPanel() {
+	const panel = document.getElementById('simbad-panel');
+	panel.classList.toggle('collapsed');
+	document.getElementById('simbad-toggle').title =
+		panel.classList.contains('collapsed') ? 'Aufklappen' : 'Zuklappen';
+}
+
+// Debounced Scheduler
+const scheduleSimbad = debounce(() => {
+	if (!aladin) return;
+	const pos = aladin.getRaDec();
+	const fov = aladin.getFov()[0];
+
+	if (fov > SIMBAD_MAX_FOV_DEG) {
+		setSimbadSummary('◈ Identifikation', '', 'idle');
+		clearSimbadResults();
+		document.getElementById('simbad-coords').textContent = 'Zu große Ansicht';
+		return;
+	}
+
+	const radius = Math.min(
+		SIMBAD_MAX_RADIUS_DEG,
+		Math.max(SIMBAD_MIN_RADIUS_DEG, fov / 40)
+	);
+
+	// Skip wenn Position ~gleich (innerhalb 20 % des Radius)
+	if (simbadLastQuery) {
+		const dRa  = Math.abs(pos[0] - simbadLastQuery.ra);
+		const dDec = Math.abs(pos[1] - simbadLastQuery.dec);
+		if (dRa < radius * 0.2 && dDec < radius * 0.2 &&
+			Math.abs(radius - simbadLastQuery.radius) / radius < 0.2) return;
+	}
+
+	simbadLastQuery = { ra: pos[0], dec: pos[1], radius };
+	querySimbad(pos[0], pos[1], radius);
+}, SIMBAD_DEBOUNCE_MS);
+
+async function querySimbad(ra, dec, radius) {
+	if (simbadAbort) simbadAbort.abort();
+	simbadAbort = new AbortController();
+
+	setSimbadSummary('⏳ Suche …', '', 'loading');
+	document.getElementById('simbad-coords').textContent =
+		formatCoords(ra, dec) + `  ·  r=${(radius * 3600).toFixed(0)}″`;
+
+	const adql =
+		`SELECT TOP ${SIMBAD_MAX_RESULTS} main_id, otype, ra, dec, ` +
+		`DISTANCE(POINT('ICRS', ra, dec), POINT('ICRS', ${ra}, ${dec})) * 3600 AS dist ` +
+		`FROM basic ` +
+		`WHERE 1 = CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', ${ra}, ${dec}, ${radius})) ` +
+		`ORDER BY dist`;
+
+	const body = new URLSearchParams({
+		request: 'doQuery',
+		lang:    'adql',
+		format:  'json',
+		query:   adql,
+	});
+
+	try {
+		const res = await fetch(SIMBAD_TAP_URL, {
+			method:  'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body,
+			signal:  simbadAbort.signal,
+		});
+		if (!res.ok) throw new Error('HTTP ' + res.status);
+		const data = await res.json();
+		renderSimbadResults(data);
+	} catch (e) {
+		if (e.name === 'AbortError') return;
+		setSimbadSummary('✗ ' + e.message, '', 'error');
+		clearSimbadResults();
+	}
+}
+
+function renderSimbadResults(data) {
+	const rows  = Array.isArray(data?.data) ? data.data : [];
+	const tbody = document.querySelector('#simbad-table tbody');
+	tbody.innerHTML = '';
+
+	const panel = document.getElementById('simbad-panel');
+	if (rows.length === 0) {
+		panel.classList.add('empty');
+		setSimbadSummary('◈ Nichts gefunden', '', 'idle');
+		return;
+	}
+	panel.classList.remove('empty');
+
+	// Collapsed-Summary = bestes Ergebnis (erstes, da nach dist sortiert)
+	const [bestName, bestType] = rows[0];
+	setSimbadSummary('◈ ' + bestName, bestType || '', 'idle');
+
+	// Tabelle
+	for (const row of rows) {
+		const [name, otype, rRa, rDec, dist] = row;
+		const tr = document.createElement('tr');
+		tr.innerHTML = `
+			<td class="simbad-name">${escapeHtml(name)}</td>
+			<td class="simbad-type">${escapeHtml(otype || '')}</td>
+			<td class="simbad-dist">${dist != null ? dist.toFixed(1) : '–'}</td>
+		`;
+		tr.title = `RA ${parseFloat(rRa).toFixed(4)}°  Dec ${parseFloat(rDec).toFixed(4)}°  ·  klicken zum Zentrieren`;
+		tr.addEventListener('click', () => {
+			aladin.gotoRaDec(parseFloat(rRa), parseFloat(rDec));
+		});
+		tbody.appendChild(tr);
+	}
+}
+
+function setSimbadSummary(text, type, state) {
+	const el = document.getElementById('simbad-summary');
+	el.innerHTML = escapeHtml(text) + (type ? ` <span class="simbad-type">${escapeHtml(type)}</span>` : '');
+	el.classList.remove('loading', 'error');
+	if (state === 'loading' || state === 'error') el.classList.add(state);
+}
+
+function clearSimbadResults() {
+	document.querySelector('#simbad-table tbody').innerHTML = '';
+	document.getElementById('simbad-panel').classList.remove('empty');
+}
+
+function formatCoords(ra, dec) {
+	// HH MM SS.s  ±DD MM SS
+	const raH  = ra / 15;
+	const rH   = Math.floor(raH);
+	const rM   = Math.floor((raH - rH) * 60);
+	const rS   = ((raH - rH) * 60 - rM) * 60;
+	const sign = dec < 0 ? '-' : '+';
+	const ad   = Math.abs(dec);
+	const dD   = Math.floor(ad);
+	const dM   = Math.floor((ad - dD) * 60);
+	const dS   = Math.round(((ad - dD) * 60 - dM) * 60);
+	return `${String(rH).padStart(2,'0')}ʰ${String(rM).padStart(2,'0')}ᵐ${rS.toFixed(1).padStart(4,'0')}ˢ  ` +
+	       `${sign}${String(dD).padStart(2,'0')}°${String(dM).padStart(2,'0')}′${String(dS).padStart(2,'0')}″`;
+}
+
