@@ -1,13 +1,14 @@
 <?php
 /**
- * platesolve.php – Client für den lokalen Plate Solver Microservice.
+ * platesolve.php – Client für den Plate Solver Microservice.
  *
- * Verwendung:
- *   $result = platesolve('/tmp/upload_xyz.jpg');
- *   // $result['ra'], $result['dec'], $result['rotation'],
- *   // $result['scale_arcsec_per_px'], $result['fov_width_deg'], $result['fov_height_deg']
+ * ⚠️  Dieser Client wird in zwei Repos gepflegt:
+ *     - sky-atlas          (produktiver Einsatz)
+ *     - plate-solver-service/examples/client.php  (Referenz)
  *
- * Wirft RuntimeException bei Fehler.
+ * Bei Änderungen bitte beide Kopien synchron halten.
+ *
+ * API-Vertrag: siehe plate-solver-service README.
  */
 
 const PLATESOLVE_URL     = 'http://127.0.0.1:8011/solve';
