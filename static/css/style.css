@@ -105,7 +105,7 @@ body {
 	fill: transparent;
 	stroke: rgba(91, 156, 246, 0.7);
 	stroke-width: 1.5;
-	pointer-events: all;
+	pointer-events: stroke;
 	cursor: pointer;
 }
 
