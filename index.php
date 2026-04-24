@@ -102,6 +102,28 @@ require_once 'platesolve.php';
 
 		<!-- Speicher-Indikator -->
 		<div id="save-indicator" style="display:none"></div>
+		
+		<!-- SIMBAD Identifikations-Panel -->
+		<div id="simbad-panel" class="collapsed">
+			<div id="simbad-header">
+				<span id="simbad-summary">◈ Identifikation</span>
+				<button id="simbad-toggle" title="Aufklappen / Zuklappen">▲</button>
+			</div>
+			<div id="simbad-body">
+				<div id="simbad-coords">–</div>
+				<table id="simbad-table">
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>Typ</th>
+							<th class="col-num">Δ″</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+				<div id="simbad-empty">Keine Objekte in der Nähe</div>
+			</div>
+		</div>
 
 		<!-- Objekt-Liste Modal -->
 		<div id="list-modal">
