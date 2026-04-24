@@ -675,3 +675,129 @@ body {
 	text-align: center;
 	color: #8899bb;
 }
+
+/* ── SIMBAD Panel ──────────────────────────────────────────────────────── */
+#simbad-panel {
+	position: fixed;
+	bottom: 14px;
+	right: 14px;
+	width: 300px;
+	max-height: 420px;
+	background: rgba(13, 21, 53, 0.92);
+	border: 1px solid #2a55c4;
+	border-radius: 8px;
+	backdrop-filter: blur(8px);
+	font-size: 12px;
+	color: #c8d8ff;
+	z-index: 100;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+	transition: max-height 0.2s ease, width 0.2s ease;
+}
+#simbad-panel.collapsed {
+	max-height: 34px;
+	width: 240px;
+}
+
+#simbad-header {
+	padding: 7px 10px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	cursor: pointer;
+	user-select: none;
+	flex-shrink: 0;
+	border-bottom: 1px solid #1e3a7a;
+}
+#simbad-panel.collapsed #simbad-header { border-bottom-color: transparent; }
+
+#simbad-summary {
+	color: #e8f0ff;
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+	padding-right: 8px;
+}
+#simbad-summary .simbad-type {
+	color: #8899bb;
+	font-weight: 400;
+	margin-left: 6px;
+	font-size: 11px;
+}
+#simbad-summary.loading { color: #f0a040; }
+#simbad-summary.error   { color: #e06060; }
+
+#simbad-toggle {
+	background: transparent;
+	border: none;
+	color: #8899bb;
+	cursor: pointer;
+	padding: 0 4px;
+	font-size: 11px;
+	transition: transform 0.2s, color 0.15s;
+}
+#simbad-toggle:hover { color: #e8f0ff; }
+#simbad-panel:not(.collapsed) #simbad-toggle { transform: rotate(180deg); }
+
+#simbad-body {
+	flex: 1;
+	overflow-y: auto;
+	padding: 8px 10px 10px;
+}
+#simbad-panel.collapsed #simbad-body { display: none; }
+
+#simbad-coords {
+	color: #8899bb;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	padding-bottom: 6px;
+	border-bottom: 1px dashed rgba(30,58,122,0.5);
+	margin-bottom: 6px;
+}
+
+#simbad-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 11.5px;
+}
+#simbad-table th {
+	text-align: left;
+	color: #8899bb;
+	font-weight: 500;
+	padding: 4px 6px 4px 0;
+	border-bottom: 1px solid rgba(30,58,122,0.5);
+}
+#simbad-table th.col-num { text-align: right; }
+#simbad-table td {
+	padding: 5px 6px 5px 0;
+	border-bottom: 1px solid rgba(30,58,122,0.25);
+	vertical-align: middle;
+}
+#simbad-table tbody tr {
+	cursor: pointer;
+	transition: background 0.1s;
+}
+#simbad-table tbody tr:hover { background: rgba(42,85,196,0.18); }
+
+#simbad-table .simbad-name { color: #e8f0ff; font-weight: 500; }
+#simbad-table .simbad-type { color: #a8b8d8; font-size: 11px; }
+#simbad-table .simbad-dist {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: #8899bb;
+}
+
+#simbad-empty {
+	display: none;
+	color: #8899bb;
+	font-style: italic;
+	text-align: center;
+	padding: 14px 4px;
+}
+#simbad-panel.empty #simbad-empty  { display: block; }
+#simbad-panel.empty #simbad-table  { display: none; }
+
