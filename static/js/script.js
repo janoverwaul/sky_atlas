@@ -29,7 +29,7 @@ A.init.then(() => {
 		target:                   '03 32 54.03 +14 27 41.5',
 		cooFrame:                 'icrs',
 		showCooGridControl:       true,
-		showSimbadPointerControl: false,
+		showSimbadPointerControl: true,
 		showCooGrid:              true,
 		reticleColor:             '#5b9cf6',
 		reticleSize:              24,
