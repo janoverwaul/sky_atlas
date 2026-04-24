@@ -2,15 +2,13 @@
 
 Ein interaktiver Himmelskarten-Viewer auf Basis von **Aladin Lite v3**, mit dem du eigene Astrofotoaufnahmen direkt auf die Himmelskarte legen, positionieren und verwalten kannst.
 
-![Sky Atlas Screenshot](docs/screenshot.png)
-
 ---
 
 ## Features
 
 - 🌌 **Aladin Lite v3** als Kartengrundlage (DSS, 2MASS, u.v.m.)
 - 🖼️ **Eigene Bilder als Overlay** – positionierbar per RA/Dec, skalierbar und rotierbar
-- 🎯 **Automatisches Plate Solving** (optional) – beim Upload werden RA/Dec, Rotation und FOV automatisch aus dem Bildinhalt bestimmt (lokaler Astrometry.net-Microservice, siehe unten)
+- 🎯 **Automatisches Plate Solving** (optional) – beim Upload werden RA/Dec, Rotation und FOV automatisch aus dem Bildinhalt bestimmt, sofern der [plate-solver-service](https://github.com/DEIN-USER/plate-solver-service) lokal läuft
 - 🔍 **SIMBAD-Live-Identifikation** – aufklappbares Panel unten rechts, zeigt das Objekt unter dem Fadenkreuz sowie eine Liste aller nahegelegenen Objekte aus dem SIMBAD-Katalog (CDS Strasbourg)
 - 📋 **Objekt-Übersichtsliste** – sortierbares Modal mit allen eigenen Aufnahmen (Name, RA, Dec, Beschreibung, Vorschaubild), Sprung-Button pro Objekt (Modal schließt, Karte zoomt mit 2× FOV auf das Objekt)
 - 🔀 **Drei Ansichtsmodi** (gestaffelt nach Sichtfeld)
@@ -36,7 +34,7 @@ Ein interaktiver Himmelskarten-Viewer auf Basis von **Aladin Lite v3**, mit dem 
 
 ### Optional: Plate Solver
 
-Wer beim Upload automatische Positionsbestimmung möchte, benötigt zusätzlich einen lokalen Plate-Solver-Microservice auf Basis von **Astrometry.net** + **FastAPI**. Siehe Abschnitt [Plate Solving](#plate-solving-optional) weiter unten.
+Für automatische Positionsbestimmung beim Bild-Upload wird der separate Microservice **[plate-solver-service](https://github.com/DEIN-USER/plate-solver-service)** benötigt (Astrometry.net + FastAPI). Ohne diesen Service ist alles andere voll funktionsfähig – Bilder werden dann an der aktuellen Kartenposition platziert. Siehe Abschnitt [Plate Solving](#plate-solving-optional).
 
 ---
 
@@ -112,7 +110,9 @@ Der Webserver muss PHP-Anfragen verarbeiten und `api/` als erreichbaren Pfad ber
 
 ## Plate Solving (optional)
 
-Beim Upload eines Bildes im Admin-Modus versucht Sky Atlas automatisch, die Position des Bildes astrometrisch zu bestimmen. Der PHP-Client (`platesolve.php`) schickt die Datei per HTTP an einen lokalen FastAPI-Microservice unter `http://127.0.0.1:8011/solve`, der intern `solve-field` von Astrometry.net aufruft.
+Beim Upload eines Bildes im Admin-Modus versucht Sky Atlas, die Position astrometrisch zu bestimmen. Der PHP-Client (`platesolve.php`) schickt die Datei an einen lokalen Microservice unter `http://127.0.0.1:8011/solve`.
+
+**Installation des Microservice:** siehe separates Repository **[plate-solver-service](https://github.com/DEIN-USER/plate-solver-service)**. Dort ist die komplette Einrichtung von Astrometry.net, Index-Dateien und systemd-Service dokumentiert.
 
 **Verhalten beim Upload:**
 
@@ -123,8 +123,6 @@ Beim Upload eines Bildes im Admin-Modus versucht Sky Atlas automatisch, die Posi
 | ❌ Service nicht erreichbar | aktuelle Kartenposition | `0°` | `1° × 1°` (manuell anpassbar) |
 
 Der Upload schlägt in keinem Fall fehl – ohne erfolgreiches Solve wird das Bild an der aktuellen Kartenposition platziert und kann per Admin-Drag-&-Drop manuell korrigiert werden.
-
-**Installation des Microservice** ist nicht Teil dieses Repositories. Kurzfassung: Ubuntu-Paket `astrometry.net` + Index-Dateien (`astrometry-data-2mass-*`, `astrometry-data-tycho2-*`), FastAPI-App unter systemd. Die Installation wird separat dokumentiert.
 
 ---
 
@@ -234,6 +232,12 @@ Keine Accounts, keine API-Keys erforderlich.
 - Der Admin-Zugang ist durch bcrypt und serverseitige Sessions gesichert. Für Produktivumgebungen wird HTTPS empfohlen.
 - Upload-Verzeichnis sollte nicht direkt per PHP ausführbar sein (z. B. per `.htaccess` `php_flag engine off` absichern).
 - Der Plate-Solver-Microservice bindet ausschließlich an `127.0.0.1` – Zugriff von außen ist nicht möglich.
+
+---
+
+## Verwandte Projekte
+
+- **[plate-solver-service](https://github.com/DEIN-USER/plate-solver-service)** – Optionaler HTTP-Microservice für automatisches Plate Solving via Astrometry.net. Eigenständiges Projekt, von Sky Atlas über `platesolve.php` angesprochen.
 
 ---
 
