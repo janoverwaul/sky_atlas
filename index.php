@@ -7,6 +7,8 @@
  *  FOV > OVERLAY_MAX_FOV  → Aladin-Catalog-Marker (oranges Kreuz)
  *  FOV ≤ OVERLAY_MAX_FOV  → SVG-Bild-Overlay, positioniert per world2pix
  */
+ 
+require_once 'platesolve.php';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -46,6 +48,7 @@
 			<svg id="sky-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
 			<div id="fov-badge">FOV: –</div>
 			<div id="mode-badge" class="mode-markers">◉ Marker</div>
+			<button id="list-btn" title="Alle Objekte anzeigen">☰ Liste</button>
 			<div id="debug-log"></div>
 		</div>
 
@@ -99,5 +102,32 @@
 
 		<!-- Speicher-Indikator -->
 		<div id="save-indicator" style="display:none"></div>
+
+		<!-- Objekt-Liste Modal -->
+		<div id="list-modal">
+			<div class="list-modal-box">
+				<div class="list-modal-header">
+					<h3>✦ Alle Objekte <span id="list-count" class="list-count">0</span></h3>
+					<button id="list-close" title="Schließen">✕</button>
+				</div>
+				<div class="list-modal-body">
+					<table id="list-table">
+						<thead>
+							<tr>
+								<th class="col-preview"></th>
+								<th data-sort="object_name">Name</th>
+								<th data-sort="ra" class="col-num">RA</th>
+								<th data-sort="dec" class="col-num">Dec</th>
+								<th data-sort="description">Beschreibung</th>
+								<th class="col-action">Aktion</th>
+							</tr>
+						</thead>
+						<tbody></tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+
 	</body>
 </html>
+
