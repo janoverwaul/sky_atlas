@@ -83,9 +83,38 @@ document.getElementById('sky-overlay').addEventListener('click', (e) => {
 	}
 });
 
-// Wheel & Mousedown an Aladin weiterleiten (nur wenn nicht Admin-Drag)
+// Wheel IMMER an das tatsächlich darunterliegende Aladin-Element weiterleiten
 skyOverlay.addEventListener('wheel', (e) => {
-	aladinDiv.dispatchEvent(new WheelEvent('wheel', e));
+    // SVG kurz für hit-testing transparent schalten
+    const prev = skyOverlay.style.pointerEvents;
+    skyOverlay.style.pointerEvents = 'none';
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    skyOverlay.style.pointerEvents = prev;
+
+    if (!under || !aladinDiv.contains(under)) return;
+
+    e.preventDefault();
+
+    // Vollständiger WheelEvent – Properties müssen EXPLIZIT gesetzt werden,
+    // `new WheelEvent('wheel', e)` kopiert sie NICHT.
+    under.dispatchEvent(new WheelEvent('wheel', {
+        deltaX:    e.deltaX,
+        deltaY:    e.deltaY,
+        deltaZ:    e.deltaZ,
+        deltaMode: e.deltaMode,
+        clientX:   e.clientX,
+        clientY:   e.clientY,
+        screenX:   e.screenX,
+        screenY:   e.screenY,
+        ctrlKey:   e.ctrlKey,
+        shiftKey:  e.shiftKey,
+        altKey:    e.altKey,
+        metaKey:   e.metaKey,
+        bubbles:    true,
+        cancelable: true,
+        composed:   true,
+        view:       window,
+    }));
 }, { passive: false });
 
 skyOverlay.addEventListener('mousedown', (e) => {
@@ -320,7 +349,7 @@ function createSVGGroup(img) {
 	border.setAttribute('class', 'img-border');
 	border.setAttribute('rx', '3');
 	border.dataset.imgId = img.id;
-	border.setAttribute('pointer-events', 'all');
+	border.setAttribute('pointer-events', 'stroke');
 	border.setAttribute('fill', 'transparent');
 
 	const label = document.createElementNS(ns, 'text');
@@ -396,62 +425,62 @@ function buildPopupHTML(img) {
 
 // ── Fast Pan ──────────────────────────────────────────────────────────────────
 function setupFastPan() {
-	const div = document.getElementById('aladin-lite-div');
-	const svg = document.getElementById('sky-overlay');
+    const div = document.getElementById('aladin-lite-div');
+    const svg = document.getElementById('sky-overlay');
 
-	let startX = 0, startY = 0, startRa = 0, startDec = 0;
-	let panRafId = null;
+    let startX = 0, startY = 0, startRa = 0, startDec = 0;
 
-	div.addEventListener('mousedown', (e) => {
-		if (adminMode) return; // Admin-Modus: kein Panning
-		if (e.button !== 0) return;
+    div.addEventListener('mousedown', (e) => {
+        if (adminMode) return;
+        if (e.button !== 0) return;
 
-		isPanning = true;
-		startX = e.clientX;
-		startY = e.clientY;
+        isPanning = true;
+        startX = e.clientX;
+        startY = e.clientY;
 
-		const pos = aladin.getRaDec();
-		startRa  = pos[0];
-		startDec = pos[1];
+        const pos = aladin.getRaDec();
+        startRa  = pos[0];
+        startDec = pos[1];
 
-		e.stopPropagation();
-	}, true);
+        e.stopPropagation();
+    }, true);
 
-	window.addEventListener('mousemove', (e) => {
-		if (!isPanning) return;
+    window.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
 
-		const fov      = aladin.getFov();
-		const deltaRa  = (e.clientX - startX) / div.clientWidth  * fov[0] * PAN_SPEED;
-		const deltaDec = (e.clientY - startY) / div.clientHeight * fov[1] * PAN_SPEED;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
 
-		const newRa  = ((startRa + deltaRa) % 360 + 360) % 360;
-		const newDec = Math.max(-90, Math.min(90, startDec + deltaDec));
+        const fov      = aladin.getFov();
+        const deltaRa  = dx / div.clientWidth  * fov[0] * PAN_SPEED;
+        const deltaDec = dy / div.clientHeight * fov[1] * PAN_SPEED;
 
-		aladin.gotoRaDec(newRa, newDec);
+        const newRa  = ((startRa + deltaRa) % 360 + 360) % 360;
+        const newDec = Math.max(-90, Math.min(90, startDec + deltaDec));
 
-		if (currentMode === 'overlay') {
-			if (panRafId) cancelAnimationFrame(panRafId);
-			panRafId = requestAnimationFrame(() => {
-				panRafId = null;
-				renderOverlays();
-			});
-		}
-	});
+        aladin.gotoRaDec(newRa, newDec);
 
-	window.addEventListener('mouseup', () => {
-		if (isPanning) {
-			isPanning = false;
-			panRafId  = null;
-			requestAnimationFrame(update);
-		}
-	});
+        // Overlay synchron per CSS-Transform mitbewegen — kein world2pix-Lag.
+        // Aladin verschiebt den Inhalt um -dx*PAN_SPEED (steigender RA → Sterne
+        // wandern nach links), das SVG muss entsprechend transformiert werden.
+        if (currentMode === 'overlay') {
+            svg.style.transform = `translate(${dx * PAN_SPEED}px, ${dy * PAN_SPEED}px)`;
+        }
+    });
 
-	svg.addEventListener('contextmenu', openAladinContextMenuFromOverlay, true);
+    window.addEventListener('mouseup', () => {
+        if (!isPanning) return;
+        isPanning = false;
+        svg.style.transform = '';   // Transform zurücksetzen …
+        update();                   // … und einmal exakt neu rendern
+    });
 
-	div.addEventListener('contextmenu', (e) => {
-		e.preventDefault();
-		e.stopPropagation();
-	}, false);
+    svg.addEventListener('contextmenu', openAladinContextMenuFromOverlay, true);
+
+    div.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, false);
 }
 
 function openAladinContextMenuFromOverlay(e) {
