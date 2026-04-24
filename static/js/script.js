@@ -2,6 +2,7 @@
 const API_URL         = 'api/images.php';
 const IMAGES_DIR      = 'images/';
 const OVERLAY_MAX_FOV = 15;
+const MARKER_SMALL_FOV = 30;
 const PAN_SPEED       = 2.0;
 const SAVE_DEBOUNCE_MS = 500;
 
@@ -9,6 +10,7 @@ const SAVE_DEBOUNCE_MS = 500;
 let aladin        = null;
 let allImages     = [];
 let currentMode   = 'markers';
+let currentMarkerSize = null;
 let aladinCatalog = null;
 let isPanning     = false;
 let adminMode     = false;
@@ -181,12 +183,30 @@ function update() {
 function renderMarkers() {
 	document.getElementById('sky-overlay').style.display = 'none';
 
+	const fov        = aladin.getFov()[0];
+	const sourceSize = fov > MARKER_SMALL_FOV ? 10 : 18;
+
+	// Katalog nur neu aufbauen, wenn Größe sich geändert hat
+	// (aladinCatalog === null → wurde von renderOverlays entfernt → neu bauen)
+	if (aladinCatalog && currentMarkerSize === sourceSize) {
+		document.getElementById('pill-visible').textContent = allImages.length + ' Marker';
+		return;
+	}
+
 	if (aladinCatalog) {
 		try { aladin.removeLayer(aladinCatalog); } catch(e) {}
 		aladinCatalog = null;
 	}
 
-	aladinCatalog = A.catalog({ name: 'Meine Aufnahmen', sourceSize: 18, color: '#f0a040', onClick: 'showPopup', shape: 'cross' });
+	currentMarkerSize = sourceSize;
+
+	aladinCatalog = A.catalog({
+		name:       'Meine Aufnahmen',
+		sourceSize,
+		color:      '#f0a040',
+		onClick:    'showPopup',
+		shape:      'cross',
+	});
 	aladin.addCatalog(aladinCatalog);
 
 	const sources = allImages.map(img =>
@@ -194,7 +214,7 @@ function renderMarkers() {
 	);
 	aladinCatalog.addSources(sources);
 	document.getElementById('pill-visible').textContent = sources.length + ' Marker';
-	dbg('● Marker-Modus  (' + sources.length + ' Quellen)');
+	dbg(`● Marker-Modus  (${sources.length} Quellen, size=${sourceSize}px, FOV=${fov.toFixed(1)}°)`);
 }
 
 // ── Overlay-Modus ─────────────────────────────────────────────────────────────
@@ -785,38 +805,79 @@ function setSaveIndicator(state) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function handleUpload() {
-	const name = document.getElementById('upload-name').value.trim();
-	const file = document.getElementById('upload-file').files[0];
-	const stat = document.getElementById('upload-status');
+    const name = document.getElementById('upload-name').value.trim();
+    const file = document.getElementById('upload-file').files[0];
+    const stat = document.getElementById('upload-status');
 
-	if (!name || !file) { stat.textContent = 'Name und Datei erforderlich.'; return; }
+    if (!name || !file) { stat.textContent = 'Name und Datei erforderlich.'; return; }
 
-	// Aktuelles Kartenzentrum als Startposition
-	const pos = aladin.getRaDec();
-	const fd  = new FormData();
-	fd.append('object_name', name);
-	fd.append('ra',  pos[0]);
-	fd.append('dec', pos[1]);
-	fd.append('image', file);
+    const pos = aladin.getRaDec();
+    const fd  = new FormData();
+    fd.append('object_name', name);
+    fd.append('ra',  pos[0]);   // Fallback-Position
+    fd.append('dec', pos[1]);
+    fd.append('image', file);
 
-	stat.textContent = 'Lade hoch…';
-	try {
-		const res  = await fetch(API_URL, { method: 'POST', body: fd });
-		const data = await res.json();
-		if (data.success) {
-			allImages.push(data.image);
-			document.getElementById('pill-total').textContent = allImages.length + ' Objekte';
-			document.getElementById('upload-name').value = '';
-			document.getElementById('upload-file').value = '';
-			stat.textContent = '✓ ' + data.image.object_name + ' hinzugefügt';
-			selectedImgId = String(data.image.id);
-			update();
-		} else {
-			stat.textContent = '✗ ' + (data.error || 'Fehler');
-		}
-	} catch (err) {
-		stat.textContent = '✗ Upload-Fehler: ' + err.message;
-	}
+    // Solving kann 30–120 s dauern → Nutzer informieren
+    stat.innerHTML = '<span style="color:#f0a040">⏳ Plate Solving läuft… (bis zu 2 min)</span>';
+    document.getElementById('upload-submit').disabled = true;
+
+    try {
+        const res  = await fetch(API_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (!data.success) {
+            stat.textContent = '✗ ' + (data.error || 'Fehler');
+            return;
+        }
+
+        // Bild in lokale Liste aufnehmen
+        // images.php liefert 'dec' noch nicht direkt – Alias setzen
+        data.image.dec = data.image.dec ?? data.image.declination;
+        allImages.push(data.image);
+        document.getElementById('pill-total').textContent = allImages.length + ' Objekte';
+
+        // Cache-Eintrag für altes SVG-Objekt entfernen (frische Darstellung)
+        overlayCache.delete(String(data.image.id));
+
+        // Upload-Felder zurücksetzen
+        document.getElementById('upload-name').value = '';
+        document.getElementById('upload-file').value = '';
+
+        if (data.plate_solved) {
+            stat.innerHTML =
+                `✓ <strong>${data.image.object_name}</strong> gelöst – ` +
+                `RA ${parseFloat(data.image.ra).toFixed(3)}°  ` +
+                `Dec ${parseFloat(data.image.dec).toFixed(3)}°  ` +
+                `FOV ${parseFloat(data.image.fov_width).toFixed(3)}° × ` +
+                `${parseFloat(data.image.fov_height).toFixed(3)}°`;
+
+            // Karte zur Bildmitte navigieren, FOV = 3× die längere Bildseite
+            const targetFov = Math.max(
+                parseFloat(data.image.fov_width),
+                parseFloat(data.image.fov_height)
+            ) * 3;
+
+            aladin.gotoRaDec(parseFloat(data.image.ra), parseFloat(data.image.dec));
+            aladin.setFov(targetFov);
+
+        } else {
+            stat.innerHTML =
+                `✓ <strong>${data.image.object_name}</strong> hinzugefügt` +
+                (data.solve_msg
+                    ? ` <span style="color:#8b949e;font-size:.85em">(kein Plate-Solve: ${data.solve_msg.substring(0, 80)})</span>`
+                    : '');
+        }
+
+        // Auswahl auf neues Bild setzen und Karte aktualisieren
+        selectedImgId = String(data.image.id);
+        update();
+
+    } catch (err) {
+        stat.textContent = '✗ Upload-Fehler: ' + err.message;
+    } finally {
+        document.getElementById('upload-submit').disabled = false;
+    }
 }
 
 async function adminDeleteImage(imgId) {
@@ -844,4 +905,126 @@ async function adminDeleteImage(imgId) {
     } catch (err) {
         setStatus('Lösch-Fehler: ' + err.message);
     }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Objekt-Liste Modal ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Sort-State bleibt über Modal-Öffnen/Schließen hinweg bestehen
+let listSortCol = 'object_name';
+let listSortDir = 'asc';
+
+// Button-Listener
+document.getElementById('list-btn').addEventListener('click', showListModal);
+document.getElementById('list-close').addEventListener('click', hideListModal);
+
+// Klick auf Modal-Hintergrund schließt
+document.getElementById('list-modal').addEventListener('click', (e) => {
+	if (e.target.id === 'list-modal') hideListModal();
+});
+
+// Escape schließt
+window.addEventListener('keydown', (e) => {
+	if (e.key === 'Escape' && document.getElementById('list-modal').classList.contains('visible')) {
+		hideListModal();
+	}
+});
+
+// Header-Klick = Sortierung
+document.querySelectorAll('#list-table thead th[data-sort]').forEach(th => {
+	th.addEventListener('click', () => {
+		const col = th.dataset.sort;
+		if (listSortCol === col) {
+			listSortDir = listSortDir === 'asc' ? 'desc' : 'asc';
+		} else {
+			listSortCol = col;
+			listSortDir = 'asc';
+		}
+		renderList();
+	});
+});
+
+function showListModal() {
+	renderList();
+	document.getElementById('list-modal').classList.add('visible');
+}
+
+function hideListModal() {
+	document.getElementById('list-modal').classList.remove('visible');
+}
+
+function renderList() {
+	const tbody = document.querySelector('#list-table tbody');
+	tbody.innerHTML = '';
+	document.getElementById('list-count').textContent = allImages.length;
+
+	if (allImages.length === 0) {
+		tbody.innerHTML = '<tr><td colspan="6" id="list-empty">Keine Objekte vorhanden</td></tr>';
+		return;
+	}
+
+	// Header-Pfeile aktualisieren
+	document.querySelectorAll('#list-table thead th[data-sort]').forEach(th => {
+		th.classList.remove('sort-asc', 'sort-desc');
+		if (th.dataset.sort === listSortCol) th.classList.add('sort-' + listSortDir);
+	});
+
+	// Sortieren
+	const numeric = ['ra', 'dec'];
+	const sorted  = [...allImages].sort((a, b) => {
+		let va = a[listSortCol];
+		let vb = b[listSortCol];
+		if (numeric.includes(listSortCol)) {
+			va = parseFloat(va) || 0;
+			vb = parseFloat(vb) || 0;
+			return listSortDir === 'asc' ? va - vb : vb - va;
+		}
+		va = (va ?? '').toString().toLowerCase();
+		vb = (vb ?? '').toString().toLowerCase();
+		return listSortDir === 'asc' ? va.localeCompare(vb, 'de') : vb.localeCompare(va, 'de');
+	});
+
+	// Zeilen rendern
+	for (const img of sorted) {
+		const tr = document.createElement('tr');
+		tr.innerHTML = `
+			<td><img class="list-preview" src="${IMAGES_DIR}${escapeAttr(img.filename)}" alt="" onerror="this.style.visibility='hidden'"></td>
+			<td class="list-name">${escapeHtml(img.object_name)}</td>
+			<td class="list-num">${parseFloat(img.ra).toFixed(3)}°</td>
+			<td class="list-num">${parseFloat(img.dec).toFixed(3)}°</td>
+			<td class="list-desc" title="${escapeAttr(img.description || '')}">${escapeHtml(img.description || '–')}</td>
+			<td class="col-action"><button class="list-jump-btn" data-id="${img.id}" title="Zum Objekt springen und zoomen">𖦏 GoTo</button></td>
+		`;
+		tbody.appendChild(tr);
+	}
+
+	// Jump-Buttons
+	tbody.querySelectorAll('.list-jump-btn').forEach(btn => {
+		btn.addEventListener('click', () => jumpToObject(btn.dataset.id));
+	});
+}
+
+function jumpToObject(imgId) {
+	const img = allImages.find(i => String(i.id) === String(imgId));
+	if (!img) return;
+
+	const ra        = parseFloat(img.ra);
+	const dec       = parseFloat(img.dec);
+	const targetFov = Math.max(parseFloat(img.fov_width), parseFloat(img.fov_height)) * 2;
+
+	aladin.gotoRaDec(ra, dec);
+	aladin.setFov(targetFov);
+
+	hideListModal();
+}
+
+// ── HTML-Escape-Helper ────────────────────────────────────────────────────────
+function escapeHtml(str) {
+	const div = document.createElement('div');
+	div.textContent = str ?? '';
+	return div.innerHTML;
+}
+function escapeAttr(str) {
+	return String(str ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
