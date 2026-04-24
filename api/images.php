@@ -65,12 +65,16 @@ $pdo->exec("
 ");
 
 // ── Beispiel-Daten (nur beim ersten Start) ────────────────────────────────────
+$count = $pdo->query("SELECT COUNT(*) FROM skyatlas_images")->fetchColumn();
 if ($count == 0) {
     $samples = [
-        ['orion_nebula.jpg', 'M42 – Orion Nebula',      83.768910599162,  -5.4624658620473, 2.5873939686001, 2.1651811990043, 35.150006711294,  null, '2024-11-15'],
-        ['horsehead.jpg',    'B33 – Horsehead Nebula',  84.929348669142,  -1.7621460113956, 2.6828447457564, 2.561872562745,  27.459863143588,  null, '2024-11-20'],
-        ['pleiades.jpg',     'M45 – Pleiades',          56.642768226802,  24.147822926668,  2.11421000362,   2.3222185233041, 306.36251911738,  null, '2024-12-28'],
-        ['andromeda.jpg',    'M31 – Andromeda Galaxy',  10.392663600751,  41.260775903824,  3.0994,          1.9582,          55.140401344533,  null, '2024-08-31'],
+        ['orion_nebula.jpg',  'M42 – Orion Nebula',       83.8221,  -5.3911, 1.8, 1.35,  0, 'Orion Nebel', '2024-11-15'],
+        ['horsehead.jpg',     'B33 – Horsehead Nebula',   85.2447,  -2.4578, 1.8, 1.35,  0, 'Pferdekopfnebel', '2024-11-20'],
+        ['pleiades.jpg',      'M45 – Pleiades',           56.8500,  24.1167, 2.5, 1.9,   0, 'Plejaden', '2024-12-03'],
+        ['andromeda.jpg',     'M31 – Andromeda Galaxy',   10.6848,  41.2690, 3.5, 2.6,  15, 'Andromeda', '2024-12-10'],
+        ['triangulum.jpg',    'M33 – Triangulum Galaxy',  23.4621,  30.6602, 2.0, 1.5,   0, '', '2025-01-05'],
+        ['crab_nebula.jpg',   'M1 – Crab Nebula',         83.6331,  22.0145, 1.8, 1.35,  0, 'Supernova-Überrest', '2025-01-18'],
+        ['whirlpool.jpg',     'M51 – Whirlpool Galaxy',  202.4696,  47.1951, 1.8, 1.35,  0, '', '2025-02-02'],
     ];
     $stmt = $pdo->prepare("
         INSERT INTO skyatlas_images
@@ -170,7 +174,6 @@ function handle_post(PDO $pdo): void
         return;
     }
 
-    // Upload-Verzeichnis sicherstellen
     if (!is_dir(IMAGES_DIR)) {
         mkdir(IMAGES_DIR, 0755, true);
     }
@@ -184,32 +187,71 @@ function handle_post(PDO $pdo): void
         return;
     }
 
+    // ── Plate Solving ─────────────────────────────────────────────────────────
+    // platesolve.php liegt im selben Verzeichnis wie images.php (api/)
+    // → relativer Pfad eine Ebene höher, wo platesolve.php liegt
+    require_once __DIR__ . '/../platesolve.php';
+
+    $plateSolved = false;
+    $fovWidth    = 1.0;
+    $fovHeight   = 1.0;
+    $rotation    = 0.0;
+    $solveMsg    = '';
+
+    // Nur für echte Astroformate sinnvoll – GIF/WebP überspringen
+    $solveFormats = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'fits', 'fit'];
+    if (in_array($ext, $solveFormats)) {
+        try {
+            $solveResult = platesolve($dest);
+
+            $ra          = $solveResult['ra'];
+            $dec         = $solveResult['dec'];
+            $rotation    = $solveResult['rotation'];
+            $fovWidth    = $solveResult['fov_width_deg'];
+            $fovHeight   = $solveResult['fov_height_deg'];
+            $plateSolved = true;
+        } catch (RuntimeException $e) {
+            // Kein Match → Fallback auf Kartenposition, keine harte Fehlermeldung
+            $solveMsg = $e->getMessage();
+        }
+    }
+
+    // Fallback: Kartenposition war im POST, ra/dec bereits gesetzt
+    if ($ra === false || $ra === null) $ra  = 0.0;
+    if ($dec === false || $dec === null) $dec = 0.0;
+
+    // ── DB-Eintrag ────────────────────────────────────────────────────────────
     $stmt = $pdo->prepare("
         INSERT INTO skyatlas_images
             (filename, object_name, ra, declination, fov_width, fov_height, rotation, description, captured_at)
-        VALUES (:filename, :name, :ra, :dec, 1.0, 1.0, 0, '', :cat)
+        VALUES (:filename, :name, :ra, :dec, :fov_w, :fov_h, :rot, '', :cat)
     ");
     $stmt->execute([
         ':filename' => $filename,
         ':name'     => $name,
-        ':ra'       => $ra !== false ? $ra  : 0.0,
-        ':dec'      => $dec !== false ? $dec : 0.0,
+        ':ra'       => $ra,
+        ':dec'      => $dec,
+        ':fov_w'    => $fovWidth,
+        ':fov_h'    => $fovHeight,
+        ':rot'      => $rotation,
         ':cat'      => date('Y-m-d'),
     ]);
 
     $id = $pdo->lastInsertId();
     http_response_code(201);
     echo json_encode([
-        'success' => true,
-        'image'   => [
+        'success'      => true,
+        'plate_solved' => $plateSolved,
+        'solve_msg'    => $solveMsg,   // leer bei Erfolg, Hinweis bei Fallback
+        'image'        => [
             'id'          => $id,
             'object_name' => $name,
             'filename'    => $filename,
-            'ra'          => $ra !== false ? $ra  : 0.0,
-            'dec'         => $dec !== false ? $dec : 0.0,
-            'fov_width'   => 1.0,
-            'fov_height'  => 1.0,
-            'rotation'    => 0,
+            'ra'          => $ra,
+            'dec'         => $dec,
+            'fov_width'   => $fovWidth,
+            'fov_height'  => $fovHeight,
+            'rotation'    => $rotation,
             'description' => '',
             'captured_at' => date('Y-m-d'),
         ],
